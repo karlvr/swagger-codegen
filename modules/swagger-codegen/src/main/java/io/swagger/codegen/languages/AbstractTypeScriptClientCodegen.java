@@ -93,7 +93,7 @@ public abstract class AbstractTypeScriptClientCodegen extends DefaultCodegen imp
         typeMapping.put("object", "any");
         typeMapping.put("integer", "number");
         typeMapping.put("Map", "any");
-        typeMapping.put("date", "string");
+        typeMapping.put("date", "Date");
         typeMapping.put("DateTime", "Date");
         //TODO binary should be mapped to byte array
         // mapped to String as a workaround
@@ -234,6 +234,22 @@ public abstract class AbstractTypeScriptClientCodegen extends DefaultCodegen imp
             return "any";
         }
         return super.getTypeDeclaration(p);
+    }
+    
+    @Override
+    public String getWireType(Property p) {
+        if (p instanceof ArrayProperty) {
+            ArrayProperty ap = (ArrayProperty) p;
+            Property inner = ap.getItems();
+            return getSwaggerType(p) + "<" + getWireType(inner) + ">";
+        } else if (p instanceof MapProperty) {
+            MapProperty mp = (MapProperty) p;
+            Property inner = mp.getAdditionalProperties();
+            return "{ [key: string]: "+ getWireType(inner) + "; }";
+        } else if (p instanceof FileProperty) {
+            return "any";
+        }
+        return super.getWireType(p);
     }
 
     @Override

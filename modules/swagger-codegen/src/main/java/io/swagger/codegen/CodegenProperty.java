@@ -10,6 +10,9 @@ public class CodegenProperty implements Cloneable {
     public String baseName, complexType, getter, setter, description, datatype,
           datatypeWithEnum, dataFormat, name, min, max, defaultValue, defaultValueWithParam,
           baseType, containerType, title;
+    
+    /** The data type of this property on the wire (e.g. in a JSON message). */
+    public String wireType;
 
     /** The 'description' string without escape charcters needed by some programming languages/targets */
     public String unescapedDescription;
