@@ -235,6 +235,22 @@ public abstract class AbstractTypeScriptClientCodegen extends DefaultCodegen imp
         }
         return super.getTypeDeclaration(p);
     }
+    
+    @Override
+    public String getWireType(Property p) {
+        if (p instanceof ArrayProperty) {
+            ArrayProperty ap = (ArrayProperty) p;
+            Property inner = ap.getItems();
+            return getSwaggerType(p) + "<" + getWireType(inner) + ">";
+        } else if (p instanceof MapProperty) {
+            MapProperty mp = (MapProperty) p;
+            Property inner = mp.getAdditionalProperties();
+            return "{ [key: string]: "+ getWireType(inner) + "; }";
+        } else if (p instanceof FileProperty) {
+            return "any";
+        }
+        return super.getWireType(p);
+    }
 
     @Override
     public String toDefaultValue(Property p) {
