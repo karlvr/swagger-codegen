@@ -1118,6 +1118,8 @@ public class DefaultCodegen {
         String datatype = null;
         if (p instanceof StringProperty && "number".equals(p.getFormat())) {
             datatype = "BigDecimal";
+        } else if (p instanceof StringProperty && "time".equals(p.getFormat())) {
+            datatype = "time";
         } else if ((p instanceof ByteArrayProperty) || (p instanceof StringProperty && "byte".equals(p.getFormat()))) {
             datatype = "ByteArray";
         } else if (p instanceof BinaryProperty) {
@@ -1214,15 +1216,7 @@ public class DefaultCodegen {
     }
 
     public String getWireType(Property p) {
-        if (p instanceof RefProperty) {
-            return getTypeDeclaration(p);
-        } else {
-            String type = p.getType();
-            if (typeMapping.containsKey(type)) {
-                return typeMapping.get(type);
-            }
-            return type;
-        }
+        return getTypeDeclaration(p);
     }
     
     /**

@@ -77,6 +77,29 @@ public class TypeScriptFetchClientCodegen extends AbstractTypeScriptClientCodege
             return super.getTypeDeclaration(p);
         }
     }
+    
+    @Override
+    public String getWireType(Property p) {
+        if (p instanceof ArrayProperty) {
+            ArrayProperty ap = (ArrayProperty) p;
+            Property inner = ap.getItems();
+            return getSwaggerType(p) + "<" + getWireType(inner) + ">";
+        } else if (p instanceof MapProperty) {
+            MapProperty mp = (MapProperty) p;
+            Property inner = mp.getAdditionalProperties();
+            return "{ [key: string]: "+ getWireType(inner) + "; }";
+        } else if (p instanceof FileProperty) {
+            return "any";
+        } else if (p instanceof RefProperty) {
+            return getTypeDeclaration(p);
+        } else {
+            String type = p.getType();
+            if (typeMapping.containsKey(type)) {
+                return typeMapping.get(type);
+            }
+            return type;
+        }
+    }
 
     private void addNpmPackageGeneration() {
         if (additionalProperties.containsKey(NPM_NAME)) {
