@@ -114,6 +114,7 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
             hostBuilder.append(swagger.getHost());
         } else {
             hostBuilder.append("localhost");
+            LOGGER.warn("'host' not defined in the spec. Default to 'localhost'.");
         }
         if (!StringUtils.isEmpty(swagger.getBasePath()) && !swagger.getBasePath().equals("/")) {
             hostBuilder.append(swagger.getBasePath());
@@ -156,6 +157,9 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
 
         config.additionalProperties().put(CodegenConstants.GENERATE_API_DOCS, generateApiDocumentation);
         config.additionalProperties().put(CodegenConstants.GENERATE_MODEL_DOCS, generateModelDocumentation);
+
+        config.additionalProperties().put(CodegenConstants.GENERATE_APIS, generateApis);
+        config.additionalProperties().put(CodegenConstants.GENERATE_MODELS, generateModels);
 
         if (!generateApiTests && !generateModelTests) {
             config.additionalProperties().put(CodegenConstants.EXCLUDE_TESTS, true);
@@ -551,7 +555,7 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
             return;
         }
         Set<String> supportingFilesToGenerate = null;
-        String supportingFiles = System.getProperty("supportingFiles");
+        String supportingFiles = System.getProperty(CodegenConstants.SUPPORTING_FILES);
         if (supportingFiles != null && !supportingFiles.isEmpty()) {
             supportingFilesToGenerate = new HashSet<String>(Arrays.asList(supportingFiles.split(",")));
         }
@@ -977,7 +981,9 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
             }
             if (mapping != null) {
                 im.put("import", mapping);
-                imports.add(im);
+                if (!imports.contains(im)) { // avoid duplicates
+                    imports.add(im);
+                }
             }
         }
 

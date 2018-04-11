@@ -5,11 +5,14 @@ import io.swagger.models.properties.ArrayProperty;
 import io.swagger.models.properties.MapProperty;
 import io.swagger.models.properties.Property;
 import io.swagger.models.parameters.Parameter;
+import io.swagger.models.Swagger;
 import io.swagger.util.Yaml;
 
 import java.util.*;
 
 import org.apache.commons.lang3.StringUtils;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,10 +21,14 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
 
     protected static Logger LOGGER = LoggerFactory.getLogger(AbstractGoCodegen.class);
 
+    protected boolean withXml = false;
+
     protected String packageName = "swagger";
 
     public AbstractGoCodegen() {
         super();
+
+        hideGenerationTimestamp = Boolean.FALSE;
 
         defaultIncludes = new HashSet<String>(
             Arrays.asList(
@@ -79,9 +86,8 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
         cliOptions.clear();
         cliOptions.add(new CliOption(CodegenConstants.PACKAGE_NAME, "Go package name (convention: lowercase).")
                 .defaultValue("swagger"));
-        cliOptions.add(new CliOption(CodegenConstants.HIDE_GENERATION_TIMESTAMP, "hides the timestamp when files were generated")
+        cliOptions.add(new CliOption(CodegenConstants.HIDE_GENERATION_TIMESTAMP, CodegenConstants.HIDE_GENERATION_TIMESTAMP_DESC)
                 .defaultValue(Boolean.TRUE.toString()));
-
     }
 
     /**
@@ -149,11 +155,15 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
     public String toModelName(String name) {
         // camelize the model name
         // phone_number => PhoneNumber
-        return camelize(toModelFilename(name));
+        return camelize(toModel(name));
     }
 
     @Override
     public String toModelFilename(String name) {
+      return toModel("model_" + name);
+    }
+
+    public String toModel(String name) {
         if (!StringUtils.isEmpty(modelNamePrefix)) {
             name = modelNamePrefix + "_" + name;
         }
@@ -185,7 +195,7 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
         name = name.replaceAll("-", "_"); // FIXME: a parameter should not be assigned. Also declare the methods parameters as 'final'.
 
         // e.g. PetApi.go => pet_api.go
-        return underscore(name) + "_api";
+        return "api_" + underscore(name);
     }
 
     /**
@@ -298,10 +308,12 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
                 iterator.remove();
         }
 
-        // if their is a return type, import encoding/json
+        // if their is a return type, import encoding/json and if needed encoding/xml
         for (CodegenOperation operation : operations) {
             if(operation.returnBaseType != null ) {
                 imports.add(createMapping("import", "encoding/json"));
+                if (withXml)
+                    imports.add(createMapping("import", "encoding/xml"));
                 break; //just need to import once
             }
         }
@@ -360,6 +372,19 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
         }
 
         return postProcessModelsEnum(objs);
+    }
+
+    @Override
+    public Map<String, Object> postProcessSupportingFileData(Map<String, Object> objs) {
+        Swagger swagger = (Swagger)objs.get("swagger");
+        if(swagger != null) {
+            try {
+                objs.put("swagger-yaml", Yaml.mapper().writeValueAsString(swagger));
+            } catch (JsonProcessingException e) {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+        return super.postProcessSupportingFileData(objs);
     }
 
     @Override
@@ -450,4 +475,7 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
         }
     }
 
+    public void setWithXml(boolean withXml) {
+        this.withXml = withXml;
+    }
 }
