@@ -826,6 +826,7 @@ public class DefaultCodegen {
         importMapping.put("BigDecimal", "java.math.BigDecimal");
         importMapping.put("UUID", "java.util.UUID");
         importMapping.put("File", "java.io.File");
+        importMapping.put("InputStream", "java.io.InputStream");
         importMapping.put("Date", "java.util.Date");
         importMapping.put("Timestamp", "java.sql.Timestamp");
         importMapping.put("Map", "java.util.Map");
