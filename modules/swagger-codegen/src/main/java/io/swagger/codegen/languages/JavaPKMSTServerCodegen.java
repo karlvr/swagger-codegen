@@ -84,10 +84,10 @@ public class JavaPKMSTServerCodegen extends AbstractJavaCodegen {
         this.apiTestTemplateFiles.put("api_test.mustache", ".java");
         
         if (".md".equals(this.modelDocTemplateFiles.get("model_doc.mustache"))) {
-            this.modelDocTemplateFiles.remove("model_doc.mustache");
+        this.modelDocTemplateFiles.remove("model_doc.mustache");
         }
         if (".md".equals(this.apiDocTemplateFiles.get("api_doc.mustache"))) {
-            this.apiDocTemplateFiles.remove("api_doc.mustache");
+        this.apiDocTemplateFiles.remove("api_doc.mustache");
         }
     }
 
