@@ -2040,6 +2040,9 @@ public class DefaultCodegen {
         operationId = removeNonNameElementToCamelCase(operationId);
         op.path = path;
         op.operationId = toOperationId(operationId);
+        op.operationIdLowerCase = operationId.toLowerCase();
+        op.operationIdCamelCase = DefaultCodegen.camelize(operationId);
+        op.operationIdSnakeCase = DefaultCodegen.underscore(operationId);
         op.summary = escapeText(operation.getSummary());
         op.unescapedNotes = operation.getDescription();
         op.notes = escapeText(operation.getDescription());
