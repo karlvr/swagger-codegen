@@ -1,7 +1,17 @@
 package io.swagger.codegen.languages;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.Module;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import io.swagger.codegen.*;
+import io.swagger.jackson.mixin.ResponseSchemaMixin;
+import io.swagger.models.Response;
 import io.swagger.models.Swagger;
+import io.swagger.util.DeserializationModule;
 import io.swagger.util.Yaml;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -53,7 +63,11 @@ public class SwaggerYamlGenerator extends DefaultCodegen implements CodegenConfi
     @Override
     public void processSwagger(Swagger swagger) {
         try {
-            String swaggerString = Yaml.mapper().writeValueAsString(swagger);
+            final ObjectMapper mapper = new ObjectMapper(new YAMLFactory()
+                    .configure(YAMLGenerator.Feature.MINIMIZE_QUOTES, true)
+                    .configure(YAMLGenerator.Feature.ALWAYS_QUOTE_NUMBERS_AS_STRINGS, true));
+            configureMapper(mapper);
+            String swaggerString = mapper.writeValueAsString(swagger);
             String outputFile = outputFolder + File.separator + this.outputFile;
             FileUtils.writeStringToFile(new File(outputFile), swaggerString);
             LOGGER.debug("wrote file to " + outputFile);
@@ -74,4 +88,13 @@ public class SwaggerYamlGenerator extends DefaultCodegen implements CodegenConfi
         return input;
     }   
 
+    private void configureMapper(ObjectMapper mapper) {
+        Module deserializerModule = new DeserializationModule(true, true);
+        mapper.registerModule(deserializerModule);
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper.addMixIn(Response.class, ResponseSchemaMixin.class);
+    }
 }

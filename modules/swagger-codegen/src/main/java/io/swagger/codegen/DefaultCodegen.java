@@ -128,6 +128,12 @@ public class DefaultCodegen {
             this.setApiPackage((String) additionalProperties.get(CodegenConstants.API_PACKAGE));
         }
 
+        if (additionalProperties.containsKey(CodegenConstants.HIDE_GENERATION_TIMESTAMP)) {
+            setHideGenerationTimestamp(convertPropertyToBooleanAndWriteBack(CodegenConstants.HIDE_GENERATION_TIMESTAMP));
+        } else {
+            additionalProperties.put(CodegenConstants.HIDE_GENERATION_TIMESTAMP, hideGenerationTimestamp);
+        }
+
         if (additionalProperties.containsKey(CodegenConstants.SORT_PARAMS_BY_REQUIRED_FLAG)) {
             this.setSortParamsByRequiredFlag(Boolean.valueOf(additionalProperties
                     .get(CodegenConstants.SORT_PARAMS_BY_REQUIRED_FLAG).toString()));
@@ -152,7 +158,7 @@ public class DefaultCodegen {
         }
 
         if (additionalProperties.containsKey(CodegenConstants.REMOVE_OPERATION_ID_PREFIX)) {
-            this.setSortParamsByRequiredFlag(Boolean.valueOf(additionalProperties
+            this.setRemoveOperationIdPrefix(Boolean.valueOf(additionalProperties
                     .get(CodegenConstants.REMOVE_OPERATION_ID_PREFIX).toString()));
         }
     }
@@ -263,21 +269,25 @@ public class DefaultCodegen {
     }
 
     /**
-     * Returns the common prefix of variables for enum naming
+     * Returns the common prefix of variables for enum naming if 
+     * two or more variables are present
      *
      * @param vars List of variable names
      * @return the common prefix for naming
      */
     public String findCommonPrefixOfVars(List<Object> vars) {
-        try {
-            String[] listStr = vars.toArray(new String[vars.size()]);
-            String prefix = StringUtils.getCommonPrefix(listStr);
-            // exclude trailing characters that should be part of a valid variable
-            // e.g. ["status-on", "status-off"] => "status-" (not "status-o")
-            return prefix.replaceAll("[a-zA-Z0-9]+\\z", "");
-        } catch (ArrayStoreException e) {
-            return "";
+        if (vars.size() > 1) {
+            try {
+                String[] listStr = vars.toArray(new String[vars.size()]);
+                String prefix = StringUtils.getCommonPrefix(listStr);
+                // exclude trailing characters that should be part of a valid variable
+                // e.g. ["status-on", "status-off"] => "status-" (not "status-o")
+                return prefix.replaceAll("[a-zA-Z0-9]+\\z", "");
+            } catch (ArrayStoreException e) {
+                // do nothing, just return default value
+            }
         }
+        return "";
     }
 
     /**
@@ -1439,7 +1449,7 @@ public class DefaultCodegen {
                     addProperties(allProperties, allRequired, child, allDefinitions);
                 }
             }
-            addVars(m, properties, required, allProperties, allRequired);
+            addVars(m, properties, required, allDefinitions, allProperties, allRequired);
         } else {
             ModelImpl impl = (ModelImpl) model;
             if (impl.getType() != null) {
@@ -1455,7 +1465,7 @@ public class DefaultCodegen {
             if (impl.getAdditionalProperties() != null) {
                 addAdditionPropertiesToCodeGenModel(m, impl);
             }
-            addVars(m, impl.getProperties(), impl.getRequired());
+            addVars(m, impl.getProperties(), impl.getRequired(), allDefinitions);
         }
 
         if (m.vars != null) {
@@ -1938,6 +1948,8 @@ public class DefaultCodegen {
             if (property.defaultValue != null) {
                 property.defaultValue = property.defaultValue.replace(baseItem.baseType, toEnumName(baseItem));
             }
+
+            updateCodegenPropertyEnum(property);
         }
     }
 
@@ -2028,6 +2040,9 @@ public class DefaultCodegen {
         CodegenOperation op = CodegenModelFactory.newInstance(CodegenModelType.OPERATION);
         Set<String> imports = new HashSet<String>();
         op.vendorExtensions = operation.getVendorExtensions();
+
+        // store the original operationId for plug-in
+        op.operationIdOriginal = operation.getOperationId();
 
         String operationId = getOrGenerateOperationId(operation, path, httpMethod);
         // remove prefix in operationId
@@ -2152,10 +2167,10 @@ public class DefaultCodegen {
             op.responses.get(op.responses.size() - 1).hasMore = false;
 
             if (methodResponse != null) {
-                if (methodResponse.getSchema() != null) {
-                    CodegenProperty cm = fromProperty("response", methodResponse.getSchema());
-
-                    Property responseProperty = methodResponse.getSchema();
+                final Property responseProperty = methodResponse.getSchema();
+                if (responseProperty != null) {
+                    responseProperty.setRequired(true);
+                    CodegenProperty cm = fromProperty("response", responseProperty);
 
                     if (responseProperty instanceof ArrayProperty) {
                         ArrayProperty ap = (ArrayProperty) responseProperty;
@@ -2517,7 +2532,12 @@ public class DefaultCodegen {
             // set boolean flag (e.g. isString)
             setParameterBooleanFlagWithCodegenProperty(p, cp);
 
-            p.dataType = cp.datatype;
+            String parameterDataType = this.getParameterDataType(param, property);
+            if (parameterDataType != null) {
+                p.dataType = parameterDataType;
+            } else {
+                p.dataType = cp.datatype;
+            }
             p.dataFormat = cp.dataFormat;
             if(cp.isEnum) {
                 p.datatypeWithEnum = cp.datatypeWithEnum;
@@ -2728,6 +2748,18 @@ public class DefaultCodegen {
         return p;
     }
 
+   /**
+    * Returns the data type of a parameter.
+    * Returns null by default to use the CodegenProperty.datatype value
+    * @param parameter
+    * @param property
+    * @return
+    */
+   protected String getParameterDataType(Parameter parameter, Property property) {
+        return null;
+   }
+
+
     public boolean isDataTypeBinary(String dataType) {
         if (dataType != null) {
             return dataType.toLowerCase().startsWith("byte");
@@ -2765,6 +2797,7 @@ public class DefaultCodegen {
             sec.name = entry.getKey();
             sec.type = schemeDefinition.getType();
             sec.isCode = sec.isPassword = sec.isApplication = sec.isImplicit = false;
+            sec.vendorExtensions = schemeDefinition.getVendorExtensions();
 
             if (schemeDefinition instanceof ApiKeyAuthDefinition) {
                 final ApiKeyAuthDefinition apiKeyDefinition = (ApiKeyAuthDefinition) schemeDefinition;
@@ -3070,11 +3103,11 @@ public class DefaultCodegen {
         }
     }
 
-    private void addVars(CodegenModel m, Map<String, Property> properties, List<String> required) {
-        addVars(m, properties, required, null, null);
+    private void addVars(CodegenModel m, Map<String, Property> properties, List<String> required, Map<String, Model> allDefinitions) {
+        addVars(m, properties, required, allDefinitions, null, null);
     }
 
-    private void addVars(CodegenModel m, Map<String, Property> properties, List<String> required,
+    private void addVars(CodegenModel m, Map<String, Property> properties, List<String> required, Map<String, Model> allDefinitions,
                          Map<String, Property> allProperties, List<String> allRequired) {
 
         m.hasRequired = false;
@@ -3085,7 +3118,7 @@ public class DefaultCodegen {
 
             Set<String> mandatory = required == null ? Collections.<String> emptySet()
                     : new TreeSet<String>(required);
-            addVars(m, m.vars, properties, mandatory);
+            addVars(m, m.vars, properties, mandatory, allDefinitions);
             m.allMandatory = m.mandatory = mandatory;
         } else {
             m.emptyVars = true;
@@ -3096,12 +3129,12 @@ public class DefaultCodegen {
         if (allProperties != null) {
             Set<String> allMandatory = allRequired == null ? Collections.<String> emptySet()
                     : new TreeSet<String>(allRequired);
-            addVars(m, m.allVars, allProperties, allMandatory);
+            addVars(m, m.allVars, allProperties, allMandatory, allDefinitions);
             m.allMandatory = allMandatory;
         }
     }
 
-    private void addVars(CodegenModel m, List<CodegenProperty> vars, Map<String, Property> properties, Set<String> mandatory) {
+    private void addVars(CodegenModel m, List<CodegenProperty> vars, Map<String, Property> properties, Set<String> mandatory, Map<String, Model> allDefinitions) {
         // convert set to list so that we can access the next entry in the loop
         List<Map.Entry<String, Property>> propertyList = new ArrayList<Map.Entry<String, Property>>(properties.entrySet());
         final int totalCount = propertyList.size();
@@ -3122,6 +3155,17 @@ public class DefaultCodegen {
                     // FIXME: if supporting inheritance, when called a second time for allProperties it is possible for
                     // m.hasEnums to be set incorrectly if allProperties has enumerations but properties does not.
                     m.hasEnums = true;
+                }
+
+                if (allDefinitions != null && prop instanceof RefProperty) {
+                    RefProperty refProperty = (RefProperty) prop;
+                    Model model =  allDefinitions.get(refProperty.getSimpleRef());
+                    if (model instanceof ModelImpl) {
+                        ModelImpl modelImpl = (ModelImpl) model;
+                        cp.pattern = modelImpl.getPattern();
+                        cp.minLength = modelImpl.getMinLength();
+                        cp.maxLength = modelImpl.getMaxLength();
+                    }
                 }
 
                 // set model's hasOnlyReadOnly to false if the property is read-only
@@ -3308,7 +3352,7 @@ public class DefaultCodegen {
 
     public String apiFilename(String templateName, String tag) {
         String suffix = apiTemplateFiles().get(templateName);
-        return apiFileFolder() + '/' + toApiFilename(tag) + suffix;
+        return apiFileFolder() + File.separator + toApiFilename(tag) + suffix;
     }
 
     /**
@@ -3321,7 +3365,7 @@ public class DefaultCodegen {
      */
     public String apiDocFilename(String templateName, String tag) {
         String suffix = apiDocTemplateFiles().get(templateName);
-        return apiDocFileFolder() + '/' + toApiDocFilename(tag) + suffix;
+        return apiDocFileFolder() + File.separator + toApiDocFilename(tag) + suffix;
     }
 
     /**
@@ -3334,7 +3378,7 @@ public class DefaultCodegen {
      */
     public String apiTestFilename(String templateName, String tag) {
         String suffix = apiTestTemplateFiles().get(templateName);
-        return apiTestFileFolder() + '/' + toApiTestFilename(tag) + suffix;
+        return apiTestFileFolder() + File.separator + toApiTestFilename(tag) + suffix;
     }
 
     public boolean shouldOverwrite(String filename) {
@@ -3355,6 +3399,14 @@ public class DefaultCodegen {
 
     public void setRemoveOperationIdPrefix(boolean removeOperationIdPrefix) {
         this.removeOperationIdPrefix = removeOperationIdPrefix;
+    }
+
+    public boolean isHideGenerationTimestamp() {
+        return hideGenerationTimestamp;
+    }
+
+    public void setHideGenerationTimestamp(boolean hideGenerationTimestamp) {
+        this.hideGenerationTimestamp = hideGenerationTimestamp;
     }
 
     /**
@@ -3762,5 +3814,23 @@ public class DefaultCodegen {
 
     public void writePropertyBack(String propertyKey, boolean value) {
         additionalProperties.put(propertyKey, value);
+    }
+
+    protected void addOption(String key, String description) {
+        addOption(key, description, null);
+    }
+
+    protected void addOption(String key, String description, String defaultValue) {
+        CliOption option = new CliOption(key, description);
+        if (defaultValue != null)
+            option.defaultValue(defaultValue);
+        cliOptions.add(option);
+    }
+
+    protected void addSwitch(String key, String description, Boolean defaultValue) {
+        CliOption option = CliOption.newBoolean(key, description);
+        if (defaultValue != null)
+            option.defaultValue(defaultValue.toString());
+        cliOptions.add(option);
     }
 }
