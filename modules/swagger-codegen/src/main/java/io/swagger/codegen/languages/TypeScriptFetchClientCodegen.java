@@ -73,7 +73,9 @@ public class TypeScriptFetchClientCodegen extends AbstractTypeScriptClientCodege
             MapProperty mp = (MapProperty)p;
             inner = mp.getAdditionalProperties();
             return "{ [key: string]: " + this.getTypeDeclaration(inner) + "; }";
-        } else if(p instanceof FileProperty || p instanceof ObjectProperty) {
+        } else if(p instanceof FileProperty) {
+            return null;
+        } else if (p instanceof ObjectProperty) {
             return "any";
         } else {
             return super.getTypeDeclaration(p);
